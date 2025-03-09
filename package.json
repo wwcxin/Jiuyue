@@ -1,0 +1,46 @@
+{
+  "name": "xincbot",
+  "version": "1.0.0",
+  "description": "Based on NapCat、node-napcat-ts",
+  "main": "app.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wwcxin/xincbot.git"
+  },
+  "keywords": [
+    "xincbot",
+    "bot",
+    "napcat",
+    "ntqq"
+  ],
+  "author": "wwcxin",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/wwcxin/xincbot/issues"
+  },
+  "homepage": "https://github.com/wwcxin/xincbot#readme",
+  "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "axios": "^1.8.1",
+    "chalk": "^5.3.0",
+    "isomorphic-ws": "^5.0.0",
+    "log4js": "^6.9.1",
+    "node-napcat-ts": "^0.4.8",
+    "prompts": "^2.4.2",
+    "toml": "^3.0.0",
+    "winston": "^3.12.0",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.23",
+    "@types/prompts": "^2.4.9",
+    "@types/ws": "^8.18.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  }
+}
