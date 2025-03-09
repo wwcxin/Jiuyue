@@ -16,7 +16,7 @@
 ### 安装
 
 ```bash
-git clone https://github.com/wwcxin/jiuyue.git
+git clone https://github.com/wwcxin/jiuyue.git && cd jiuyue
 ```
 
 ### 配置
@@ -35,6 +35,8 @@ plugins = ["cmd"]     # 启用的插件
 ### 运行
 
 ```bash
+npm install
+
 # 开发模式
 npm run dev
 
