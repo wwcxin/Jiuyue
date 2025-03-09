@@ -16,9 +16,7 @@
 ### 安装
 
 ```bash
-npm install xincbot
-# 或者
-yarn add xincbot
+git clone https://github.com/wwcxin/jiuyue.git
 ```
 
 ### 配置
