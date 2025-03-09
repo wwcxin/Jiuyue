@@ -13,6 +13,14 @@
 
 ## 快速开始
 
+- 确保napcat开启服务端ws
+- 确保napcat开启服务端ws
+- 确保napcat开启服务端ws
+- 确保napcat开启服务端ws
+- 确保napcat开启服务端ws
+- 确保napcat开启服务端ws
+- 确保napcat开启服务端ws
+
 ### 安装
 
 ```bash
@@ -25,7 +33,7 @@ git clone https://github.com/wwcxin/jiuyue.git && cd jiuyue
 
 ```toml
 host = "127.0.0.1"    # 机器人服务器地址
-port = "4001"         # 端口
+port = "3001"         # 端口
 prefix = "#"          # 命令前缀
 root = ["123456789"]  # 主人QQ号
 admin = []            # 管理员QQ号

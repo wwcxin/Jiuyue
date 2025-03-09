@@ -1,6 +1,6 @@
-host = "192.168.10.102"
-port = "4001"
+host = ""
+port = ""
 prefix = "#"
-root = ["2319289456"]
-admin = ["3278415603"]
+root = []
+admin = []
 plugins = ["cmd", "Ai语音"]
