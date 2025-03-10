@@ -5,6 +5,7 @@ import fs from 'fs';
 import { NCWebsocket, Structs, type Send } from 'node-napcat-ts';
 import { configManager } from './config';
 import { logger } from './logger';
+import { createRequire } from 'module';
 
 /** 群组信息接口 */
 export interface GroupInfo {
@@ -308,7 +309,7 @@ export interface XincPlugin {
   /** 插件描述 */
   desc?: string;
   /** 插件安装方法 */
-  setup?: (ctx: XincPluginContext) => void | Promise<void> | (() => void) | Promise<() => void>;
+  setup?: (ctx: XincPluginContext) => void | Promise<void> | (() => void | Promise<void>);
 }
 
 /** 插件管理器接口 */
@@ -323,7 +324,8 @@ export interface XincPluginManager {
 
 export class PluginManager implements XincPluginManager {
   private plugins: Map<string, XincPlugin> = new Map();
-  private cleanupFns = new Map<string, () => void>();
+  private cleanupFns = new Map<string, () => void | Promise<void>>();
+  private eventHandlers = new Map<string, Set<Function>>();  // 新增：记录插件的事件处理器
   private eventBus: NCWebsocket;
   private dataDir: string;
   private configDir: string;
@@ -355,9 +357,19 @@ export class PluginManager implements XincPluginManager {
     const ctx: XincPluginContext = {
       eventBus: this.eventBus,
       handle: <T extends EventKey>(event: T, handler: EventHandleMap[T]) => {
+        // 记录事件处理器
+        if (!this.eventHandlers.has(plugin.name)) {
+          this.eventHandlers.set(plugin.name, new Set());
+        }
+        this.eventHandlers.get(plugin.name)!.add(handler);
         this.eventBus.on(event, handler);
       },
       handleMessage: (handler) => {
+        // 记录消息处理器
+        if (!this.eventHandlers.has(plugin.name)) {
+          this.eventHandlers.set(plugin.name, new Set());
+        }
+        this.eventHandlers.get(plugin.name)!.add(handler);
         this.eventBus.on('message', handler);
       },
       off: <T extends EventKey>(event: T, handler: EventHandleMap[T]) => {
@@ -377,12 +389,16 @@ export class PluginManager implements XincPluginManager {
         }
         return dir;
       },
-      getText: (e) => {
-        return e.message
-          .filter((msg: MessageElement) => msg.type === 'text')
-          .map((msg: MessageElement) => msg.data.text)
-          .join('')
-          .trim();
+      getText: (e: any): string => {
+        // 处理消息数组
+        if (Array.isArray(e.message)) {
+            const text = e.message
+                .filter((msg: any) => msg.type === 'text')
+                .map((msg: any) => msg.data.text)
+                .join('');
+            return text.trim();
+        }
+        return '';
       },
       getAvatarLink: (qq: number | string): string => {
         return `https://thirdqq.qlogo.cn/headimg_dl?dst_uin=${qq}&spec=0`;
@@ -390,17 +406,29 @@ export class PluginManager implements XincPluginManager {
       getGroupLink: (group_id: number | string): string => {
         return `https://p.qlogo.cn/gh/${group_id}/${group_id}/0`;
       },
-      getQuoteMsg: async (e) => {
-        const replyMsg = e.message.find((msg: MessageElement) => msg.type === 'reply');
-        if (!replyMsg) return null;
-
+      getQuoteMsg: async (e: any): Promise<any> => {
         try {
-          const msg = await this.eventBus.get_msg({
-            message_id: parseInt(replyMsg.data.id)
-          });
-          return msg;
+            // 检查是否存在引用消息
+            const reply = e.message?.find((msg: any) => msg.type === 'reply');
+            if (!reply) return null;
+
+            // 获取引用消息ID
+            const messageId = reply.data.id;
+            if (!messageId) return null;
+
+            // 获取消息详情
+            try {
+                const result = await this.eventBus.get_msg({
+                    message_id: parseInt(messageId)
+                });
+                return result;
+            } catch (error) {
+                console.error('Failed to get message by ID:', error);
+                return null;
+            }
         } catch (error) {
-          return null;
+            console.error('Failed to get quote message:', error);
+            return null;
         }
       },
       getImageURL: (e) => {
@@ -459,7 +487,7 @@ export class PluginManager implements XincPluginManager {
       },
       reloadPlugin: async (name: string) => {
         await this.unloadPlugin(name);
-        const pluginPath = path.join(process.cwd(), 'src', 'plugins', name);
+        const pluginPath = path.join(process.cwd(), 'plugins', name);
         const plugin = (await import(path.join(pluginPath, 'index.ts'))).default;
         await this.loadPlugin(plugin);
       },
@@ -470,7 +498,7 @@ export class PluginManager implements XincPluginManager {
         await this.unloadPlugin(name);
       },
       enablePlugin: async (name: string) => {
-        const pluginPath = path.join(process.cwd(), 'dist', 'plugins', name, 'index.js');
+        const pluginPath = path.join(process.cwd(), 'plugins', name, 'index.ts');
         const devPluginPath = path.join(process.cwd(), 'plugins', name, 'index.ts');
 
         // 检查插件文件是否存在
@@ -836,23 +864,43 @@ export class PluginManager implements XincPluginManager {
       }
     };
 
-    if (plugin.setup) {
-      const cleanup = await plugin.setup(ctx);
-      if (typeof cleanup === 'function') {
+    const cleanup = await plugin.setup?.(ctx);
+    if (typeof cleanup === 'function') {
         this.cleanupFns.set(plugin.name, cleanup);
-      }
     }
 
     this.plugins.set(plugin.name, plugin);
   }
 
   async unloadPlugin(name: string): Promise<void> {
-    const cleanup = this.cleanupFns.get(name);
-    if (cleanup) {
-      await cleanup();
-      this.cleanupFns.delete(name);
+    try {
+      const handlers = this.eventHandlers.get(name);
+      if (handlers) {
+        for (const handler of handlers) {
+          this.eventBus.off('message' as EventKey, handler as any);
+          // 使用正确的事件类型
+          const events: EventKey[] = ['notice', 'request', 'meta_event'] as EventKey[];
+          for (const event of events) {
+            this.eventBus.off(event, handler as any);
+          }
+        }
+        this.eventHandlers.delete(name);
+      }
+
+      // 2. 执行清理函数
+      const cleanup = this.cleanupFns.get(name);
+      if (cleanup) {
+        await Promise.resolve(cleanup());
+        this.cleanupFns.delete(name);
+      }
+
+      // 3. 从内存中移除插件
+      this.plugins.delete(name);
+
+      logger.info(`Plugin ${name} unloaded successfully`);
+    } catch (error: any) {
+      throw new Error(`Failed to unload plugin: ${error.message}`);
     }
-    this.plugins.delete(name);
   }
 
   private formatUptime(ms: number): string {
@@ -869,110 +917,86 @@ export class PluginManager implements XincPluginManager {
   }
 
   private findPlugin(name: string): XincPlugin | undefined {
+    // 直接匹配
     let plugin = this.plugins.get(name);
     
+    // 不区分大小写匹配
     if (!plugin) {
-      for (const [key, value] of this.plugins.entries()) {
-        if (key.toLowerCase() === name.toLowerCase()) {
-          plugin = value;
-          break;
+        for (const [key, value] of this.plugins.entries()) {
+            if (key.toLowerCase() === name.toLowerCase()) {
+                plugin = value;
+                break;
+            }
         }
-      }
     }
     
     return plugin;
   }
 
+  async reloadPlugin(name: string) {
+    try {
+      // 1. 先禁用
+      await this.disablePlugin(name);
+      
+      // 2. 再启用
+      await this.enablePlugin(name);
+      
+      logger.info(`Plugin ${name} reloaded successfully`);
+    } catch (error: any) {
+      throw new Error(`重载插件失败: ${error.message}`);
+    }
+  }
+
   async enablePlugin(name: string) {
     try {
-      // 获取插件路径
-      const pluginPath = path.join(process.cwd(), 'dist', 'plugins', name, 'index.js');
-      const devPluginPath = path.join(process.cwd(), 'plugins', name, 'index.ts');
-
-      // 检查插件文件是否存在
-      if (!fs.existsSync(devPluginPath)) {
-        throw new Error(`找不到插件 ${name}`);
+      // 检查插件是否已启用
+      if (this.plugins.has(name)) {
+        throw new Error(`插件 ${name} 已经启用`);
       }
 
-      try {
-        // 尝试导入编译后的文件
-        const pluginModule = await import(pluginPath);
-        const plugin = pluginModule.default;
+      // 统一使用正确的插件路径
+      const pluginPath = path.join(process.cwd(), 'plugins', name, 'index.ts');
+      
+      if (!fs.existsSync(pluginPath)) {
+        throw new Error(`找不到插件文件: ${pluginPath}`);
+      }
 
-        if (!plugin || !plugin.name) {
-          throw new Error(`插件 ${name} 格式不正确`);
-        }
+      // 导入插件
+      const plugin = (await import(`${pluginPath}?t=${Date.now()}`)).default;
+      await this.loadPlugin(plugin);
 
-        // 加载插件
-        await this.loadPlugin(plugin);
-
-        // 更新配置文件
-        const config = configManager.getConfig();
-        config.plugins = Array.from(new Set([...(config.plugins || []), name]));
+      // 更新配置
+      const config = configManager.getConfig();
+      if (!config.plugins.includes(name)) {
+        config.plugins.push(name);
         configManager.saveConfig();
-
-      } catch (importError: any) {
-        // 如果导入失败，尝试使用 require
-        try {
-          // 使用 require 导入源文件
-          const plugin = require(devPluginPath).default;
-          
-          if (!plugin || !plugin.name) {
-            throw new Error(`插件 ${name} 格式不正确`);
-          }
-
-          await this.loadPlugin(plugin);
-
-          // 更新配置文件
-          const config = configManager.getConfig();
-          config.plugins = Array.from(new Set([...(config.plugins || []), name]));
-          configManager.saveConfig();
-
-        } catch (requireError: any) {
-          throw new Error(`无法加载插件: ${requireError.message}`);
-        }
       }
-    } catch (error) {
-      throw new Error(`启用插件失败: ${error instanceof Error ? error.message : String(error)}`);
+
+      logger.info(`Plugin ${name} enabled successfully`);
+    } catch (error: any) {
+      throw new Error(`启用插件失败: ${error.message}`);
     }
   }
 
   async disablePlugin(name: string) {
-    const plugin = this.findPlugin(name);
-    if (!plugin) {
-      throw new Error(`找不到插件 ${name}`);
-    }
-    await this.unloadPlugin(name);
-
-    // 更新配置文件
-    const config = configManager.getConfig();
-    config.plugins = (config.plugins || []).filter(p => p !== name);
-    configManager.saveConfig();
-  }
-
-  async reloadPlugin(name: string) {
     try {
-      // 先卸载
-      await this.disablePlugin(name);
-      
-      // 清除 require 缓存
-      const pluginPath = path.join(process.cwd(), 'dist', 'plugins', name, 'index.js');
-      const devPluginPath = path.join(process.cwd(), 'plugins', name, 'index.ts');
-      
-      try {
-        delete require.cache[require.resolve(pluginPath)];
-      } catch {
-        try {
-          delete require.cache[require.resolve(devPluginPath)];
-        } catch {
-          // 忽略清除缓存失败的错误
-        }
+      // 1. 检查插件是否存在
+      const plugin = this.plugins.get(name);
+      if (!plugin) {
+        throw new Error(`找不到插件 ${name}`);
       }
-      
-      // 重新启用
-      await this.enablePlugin(name);
-    } catch (error) {
-      throw new Error(`重载插件失败: ${error instanceof Error ? error.message : String(error)}`);
+
+      // 2. 卸载插件
+      await this.unloadPlugin(name);
+
+      // 3. 更新配置文件
+      const config = configManager.getConfig();
+      config.plugins = config.plugins.filter(p => p !== name);
+      configManager.saveConfig();
+
+      logger.info(`Plugin ${name} disabled successfully`);
+    } catch (error: any) {
+      throw new Error(`禁用插件失败: ${error.message}`);
     }
   }
 }

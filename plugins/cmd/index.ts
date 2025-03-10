@@ -160,9 +160,11 @@ export default definePlugin({
 
               if (cmd === 'on') {
                 await ctx.enablePlugin(plugin.name);
+                await configManager.updatePlugins('add', plugin.name);
                 await sendMessage([`已启用插件 ${plugin.name}`]);
               } else if (cmd === 'off') {
                 await ctx.disablePlugin(plugin.name);
+                await configManager.updatePlugins('remove', plugin.name);
                 await sendMessage([`已禁用插件 ${plugin.name}`]);
               } else if (cmd === 'reload') {
                 await ctx.reloadPlugin(plugin.name);

@@ -38,8 +38,11 @@ export class Bot {
     // 注册进程退出处理
     process.on('SIGINT', this.handleExit.bind(this))
     process.on('SIGTERM', this.handleExit.bind(this))
+    // 修改错误处理，防止程序退出
     process.on('uncaughtException', this.handleError.bind(this))
-    process.on('unhandledRejection', this.handleError.bind(this))
+    process.on('unhandledRejection', (reason) => {
+        this.handleError(reason instanceof Error ? reason : new Error(String(reason)))
+    })
   }
 
   async start(): Promise<void> {
@@ -50,7 +53,7 @@ export class Bot {
       logger.info('Connecting to NapCat server...')
       this.client = new NCWebsocket({
         host: config.host,
-        port: parseInt(config.port),
+        port: config.port,
         protocol: 'ws'
       })
 
@@ -179,10 +182,10 @@ export class Bot {
     process.exit(0)
   }
 
-  private async handleError(error: Error | unknown): Promise<void> {
-    logger.error(`Uncaught error: ${error instanceof Error ? error.message : String(error)}`)
-    await this.shutdown()
-    process.exit(1)
+  private handleError(error: Error) {
+    console.error('Uncaught error:', error);
+    // 记录错误但不退出
+    logger.error(`Uncaught error: ${error.message}\n${error.stack}`);
   }
 
   private async shutdown(): Promise<void> {
@@ -197,12 +200,13 @@ export class Bot {
     const config = configManager.getConfig()
     for (const name of config.plugins) {
       try {
-        // 修改插件加载路径
         const pluginPath = path.join(process.cwd(), 'plugins', name, 'index.ts')
         if (!fs.existsSync(pluginPath)) {
           throw new Error(`Plugin ${name} not found at ${pluginPath}`)
         }
-        const plugin = (await import(pluginPath)).default
+        
+        // 添加时间戳来避免缓存
+        const plugin = (await import(`${pluginPath}?t=${Date.now()}`)).default
         await this.pluginManager.loadPlugin(plugin)
         logger.info(`Loaded plugin: ${name}`)
       } catch (error) {

@@ -64,17 +64,56 @@ export default definePlugin({
             await ctx.eventBus.send(json.action, json.params);
         }
 
-        // 处理 "xx说" 开头的消息
-        const name = extractName(ctx.getText(e));
-        if (name) {
-            const characterId = roleList[name]; // 获取角色 ID
-            const content = ctx.getText(e).slice(name.length + 1); // 提取 "说" 之后的内容
+        try {
+            // 处理 "xx说" 开头的消息
+            const text = ctx.getText(e);
+            const name = extractName(text);
+            
+            if (name) {
+                const characterId = roleList[name];
+                let content = '';
+                
+                // 先检查是否有引用消息
+                if (e.message?.some(msg => msg.type === 'reply')) {
+                    const quote = await ctx.getQuoteMsg(e);
+                    
+                    if (quote) {
+                        // 尝试从引用消息中获取文本
+                        if (quote.message) {
+                            content = Array.isArray(quote.message) 
+                                ? quote.message
+                                    .filter(msg => msg.type === 'text')
+                                    .map(msg => msg.data.text)
+                                    .join('')
+                                : quote.raw_message || '';
+                        }
+                    }
+                }
+                
+                // 如果没有获取到引用消息内容，则从当前消息中提取
+                if (!content) {
+                    content = ctx.getText(e).replace(name + "说", "").trim();
+                }
+                
+                // 验证内容是否有效
+                if (!content) {
+                    await ctx.respond(e, ['请输入要转换的文本内容']);
+                    return;
+                }
 
-            await ctx.sendGroupAiRecord(e.group_id, characterId, content);
-
+                try {
+                    await ctx.sendGroupAiRecord(e.group_id, characterId, content);
+                } catch (error) {
+                    console.error('发送AI语音失败:', error);
+                    await ctx.respond(e, ['抱歉，发送AI语音失败，请稍后重试']);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('AI语音插件处理消息时发生错误:', error);
+            await ctx.respond(e, ['抱歉，处理消息时发生错误']);
+            return;
         }
-        
-        
       });
     }
   }); 

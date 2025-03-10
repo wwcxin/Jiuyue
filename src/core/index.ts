@@ -10,7 +10,7 @@ export * from './Utils'
 
 export interface Config {
     host: string
-    port: string
+    port: number
     prefix: string
     root: string[]
     admin: string[]

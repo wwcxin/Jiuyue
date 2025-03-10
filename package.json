@@ -1,5 +1,5 @@
 {
-  "name": "xincbot",
+  "name": "jiuyue",
   "version": "1.0.0",
   "description": "Based on NapCat、node-napcat-ts",
   "main": "app.js",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/wwcxin/xincbot.git"
   },
   "keywords": [
-    "xincbot",
+    "jiuyue",
     "bot",
     "napcat",
     "ntqq"
@@ -21,9 +21,9 @@
   "author": "wwcxin",
   "license": "GPL-3.0",
   "bugs": {
-    "url": "https://github.com/wwcxin/xincbot/issues"
+    "url": "https://github.com/wwcxin/jiuyue/issues"
   },
-  "homepage": "https://github.com/wwcxin/xincbot#readme",
+  "homepage": "https://github.com/wwcxin/jiuyue#readme",
   "dependencies": {
     "@iarna/toml": "^2.2.5",
     "axios": "^1.8.1",

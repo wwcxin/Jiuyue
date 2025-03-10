@@ -1,6 +1,6 @@
 host = ""
-port = ""
+port = 
 prefix = "#"
 root = []
 admin = []
-plugins = ["cmd", "Ai语音"]
+plugins = ["cmd","Ai语音"]
