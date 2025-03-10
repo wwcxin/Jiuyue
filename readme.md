@@ -14,7 +14,9 @@
 - ⚙️ 配置灵活 - 通过 TOML 文件简单配置
 
 ## 快速开始
-
+- 确保 `napcat` 开启服务端ws `websocket服务器`
+- 确保 `napcat` 开启服务端ws `websocket服务器`
+- 确保 `napcat` 开启服务端ws `websocket服务器`
 ### 安装
 
 ```bash
@@ -34,17 +36,17 @@ admin = []            # 管理员QQ号
 plugins = ["cmd"]     # 启用的插件
 ```
 
+### 安装依赖
+
+```bash
+npm install
+```
+
 ### 运行
 
 ```bash
 # 开发模式
 npm run dev
-
-# 构建
-npm run build
-
-# 生产环境运行
-npm run start
 ```
 
 ## 插件开发
