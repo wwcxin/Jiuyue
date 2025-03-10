@@ -1,7 +1,8 @@
 # xincBot
 
 基于 NapCat 和 node-napcat-ts 开发的 QQ 机器人框架。
-灵感来源 `kivibot` 因 `icqq` 难以登陆且内测版本未公开，故尝试使用 `NapCat` 。
+
+- 灵感来源 `kivibot` 因 `icqq` 难以登陆且内测版本未公开，故尝试使用 `NapCat` 。
 
 ## 特性
 
