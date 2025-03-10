@@ -133,9 +133,9 @@ export default definePlugin({
 
 ## 问题反馈
 
-如有问题，请在 [Issues](https://github.com/wwcxin/xincbot/issues) 中提出。
+如有问题，请在 [Issues](https://github.com/wwcxin/jiuyue/issues) 中提出。
 
 ## 致谢
 
-- [NapCat](https://github.com/napcat-xo/NapCat)
-- [node-napcat-ts](https://github.com/napcat-xo/node-napcat-ts)
+- [NapCat](https://github.com/NapNeko/NapCatQQ)
+- [node-napcat-ts](https://github.com/huankong-team/node-napcat-ts)
