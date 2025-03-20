@@ -50,7 +50,16 @@ export class Bot {
     const config = configManager.getConfig()
 
     try {
-      logger.info('Connecting to NapCat server...')
+      console.log(`
+██╗  ██╗██╗███╗   ██╗ ██████╗██████╗  ██████╗ ████████╗
+╚██╗██╔╝██║████╗  ██║██╔════╝██╔══██╗██╔═══██╗╚══██╔══╝
+ ╚███╔╝ ██║██╔██╗ ██║██║     ██████╔╝██║   ██║   ██║   
+ ██╔██╗ ██║██║╚██╗██║██║     ██╔══██╗██║   ██║   ██║   
+██╔╝ ██╗██║██║ ╚████║╚██████╗██████╔╝╚██████╔╝   ██║   
+╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝╚═════╝  ╚═════╝    ╚═╝   
+                                                       
+`);
+      logger.info('正在连接到NapCat服务器...')
       this.client = new NCWebsocket({
         host: config.host,
         port: config.port,
@@ -59,15 +68,15 @@ export class Bot {
 
       // 连接相关事件
       this.client.on('socket.open', async () => {
-        logger.info('Connected to NapCat server successfully!')
+        logger.info('连接到NapCat服务器成功!')
         
         try {
           if (!this.client) {
-            throw new Error('WebSocket client is not initialized')
+            throw new Error('WebSocket 客户端未初始化')
           }
 
           this.botInfo = await this.client.get_login_info()
-          logger.info(`Welcome! ${this.botInfo.nickname} Loading...`)
+          logger.info(`欢迎! ${this.botInfo.nickname} 正在加载...`)
 
           // 获取群列表
           this.groups = await this.client.get_group_list()
@@ -75,7 +84,7 @@ export class Bot {
           // 获取好友列表
           this.friends = await this.client.get_friend_list()
 
-          logger.info(`Successfully loaded ${this.groups.length} groups, ${this.friends.length} friends.`)
+          logger.info(`成功加载 ${this.groups.length} 个群, ${this.friends.length} 个好友.`)
 
           // 重新初始化插件管理器
           this.pluginManager = new PluginManager(
@@ -95,10 +104,10 @@ export class Bot {
       this.setupEventListeners()
 
       await this.client.connect()
-      logger.info(`Bot started, logged in as ${config.host}:${config.port}`)
+      logger.info(`XincBot 已启动, 已登录为 ${config.host}:${config.port}`)
 
     } catch (error) {
-      logger.error(`Failed to start bot: ${error instanceof Error ? error.message : String(error)}`)
+      logger.error(`XincBot 启动失败: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   }
@@ -110,26 +119,26 @@ export class Bot {
       if ('errors' in context) {
         const errors = context.errors.filter(e => e !== null)
         if (errors.length > 0) {
-          logger.error(`Connection error: ${errors[0]?.code} - ${errors[0]?.syscall}`)
+          logger.error(`连接错误: ${errors[0]?.code} - ${errors[0]?.syscall}`)
         }
       }
     })
 
     this.client.on('socket.close', () => {
-      logger.warn('Connection closed')
+      logger.warn('连接已关闭')
     })
 
     this.client.on('meta_event.heartbeat', (heartbeat: HeartBeat) => {
       const now = Date.now()
       if (now - this.lastHeartbeatTime >= 60000) {
-        logger.debug(`[Heartbeat] Online: ${heartbeat.status.online}`)
+        logger.debug(`[心跳] 在线: ${heartbeat.status.online}`)
         this.lastHeartbeatTime = now
       }
     })
 
     // 添加消息事件监听
     this.client.on('message.private.friend', async (msg: MessageHandler['message.private.friend']) => {
-      logger.info(`[Private Friend] ${msg.sender.nickname}(${msg.user_id}): ${msg.raw_message}`);
+      logger.info(`[私聊好友] ${msg.sender.nickname}(${msg.user_id}): ${msg.raw_message}`);
       
       const originalQuickAction = msg.quick_action;
       msg.quick_action = async (reply) => {
@@ -138,13 +147,13 @@ export class Bot {
           typeof msg === 'string' ? msg : 
           msg.type === 'text' ? msg.data.text : `[${msg.type}]`
         ).join('');
-        logger.info(`succeed to send: [Private(${msg.user_id})] ${replyText}`);
+        logger.info(`发送成功: [私聊好友(${msg.user_id})] ${replyText}`);
         return result;
       };
     });
 
     this.client.on('message.private.group', async (msg: MessageHandler['message.private.group']) => {
-      logger.info(`[Private Group] ${msg.sender.nickname}(${msg.user_id}): ${msg.raw_message}`);
+      logger.info(`[群聊] ${msg.sender.nickname}(${msg.user_id}): ${msg.raw_message}`);
       
       const originalQuickAction = msg.quick_action;
       msg.quick_action = async (reply) => {
@@ -153,44 +162,44 @@ export class Bot {
           typeof msg === 'string' ? msg : 
           msg.type === 'text' ? msg.data.text : `[${msg.type}]`
         ).join('');
-        logger.info(`succeed to send: [Private(${msg.user_id})] ${replyText}`);
+        logger.info(`发送成功: [群聊(${msg.user_id})] ${replyText}`);
         return result;
       };
     });
 
     this.client.on('message.group.normal', async (msg: MessageHandler['message.group.normal']) => {
-      logger.info(`[Group ${msg.group_id}] ${msg.sender.nickname}(${msg.user_id}): ${msg.raw_message}`);
+      logger.info(`[群聊] ${msg.group_id} ${msg.sender.nickname}(${msg.user_id}): ${msg.raw_message}`);
     });
 
     // 消息发送事件
     this.client.on('message_sent.private.friend', (msg) => {
-      logger.info(`[Private Friend Send] To ${msg.user_id}: ${msg.raw_message}`);
+      logger.info(`[私聊好友发送] 发送给 ${msg.user_id}: ${msg.raw_message}`);
     });
 
     this.client.on('message_sent.private.group', (msg) => {
-      logger.info(`[Private Group Send] To ${msg.user_id}: ${msg.raw_message}`);
+      logger.info(`[群聊发送] 发送给 ${msg.user_id}: ${msg.raw_message}`);
     });
 
     this.client.on('message_sent.group.normal', (msg) => {
-      logger.info(`[Group Send ${msg.group_id}] ${msg.raw_message}`);
+      logger.info(`[群聊发送] 发送给 ${msg.group_id}: ${msg.raw_message}`);
     });
   }
 
   private async handleExit(): Promise<void> {
-    logger.info('Received exit signal, shutting down...')
+    logger.info('收到退出信号, 正在关闭...')
     await this.shutdown()
     process.exit(0)
   }
 
   private handleError(error: Error) {
-    console.error('Uncaught error:', error);
+    console.error('未捕获错误:', error);
     // 记录错误但不退出
-    logger.error(`Uncaught error: ${error.message}\n${error.stack}`);
+    logger.error(`未捕获错误: ${error.message}\n${error.stack}`);
   }
 
   private async shutdown(): Promise<void> {
     if (this.client) {
-      logger.info('Disconnecting from NapCat server...')
+      logger.info('正在断开与NapCat服务器的连接...')
       this.client.disconnect()
       this.client = null
     }
@@ -202,15 +211,15 @@ export class Bot {
       try {
         const pluginPath = path.join(process.cwd(), 'plugins', name, 'index.ts')
         if (!fs.existsSync(pluginPath)) {
-          throw new Error(`Plugin ${name} not found at ${pluginPath}`)
+          throw new Error(`插件 ${name} 未找到 at ${pluginPath}`)
         }
         
         // 添加时间戳来避免缓存
         const plugin = (await import(`${pluginPath}?t=${Date.now()}`)).default
         await this.pluginManager.loadPlugin(plugin)
-        logger.info(`Loaded plugin: ${name}`)
+        logger.info(`加载插件: ${name}`)
       } catch (error) {
-        logger.error(`Failed to load plugin ${name}: ${error instanceof Error ? error.message : String(error)}`)
+        logger.error(`加载插件 ${name} 失败: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
   }
