@@ -16,7 +16,7 @@ export default definePlugin({
   desc: '框架管理插件',
   
   setup(ctx) {
-    ctx.handleMessage(async e => {
+    ctx.handle('message', async e => {
       // 只响应主人和管理员的命令
       if (!ctx.isAdmin(e) && !ctx.isRoot(e)) return;
       if (!ctx.getText(e).startsWith(prefix)) return;

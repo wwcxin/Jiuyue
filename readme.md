@@ -63,7 +63,22 @@ export default definePlugin({
     desc: '插件描述',
     
     setup(ctx) {
-        ctx.handleMessage(async e => {
+        ctx.handle('message', async e => {
+            // 处理全部消息
+            if (ctx.getText(e) === '你好') {
+                await ctx.respond(e, ['世界，你好！']);
+            }
+        });
+
+        ctx.handle('message.private', async e => {
+            // 处理私聊消息
+            if (ctx.getText(e) === '你好') {
+                await ctx.respond(e, ['世界，你好！']);
+            }
+        });
+
+        ctx.handle('message.group', async e => {
+            // 处理群聊消息
             if (ctx.getText(e) === '你好') {
                 await ctx.respond(e, ['世界，你好！']);
             }
@@ -71,6 +86,7 @@ export default definePlugin({
     }
 });
 ```
+- 详细开发指南请参考 [plugin-development.md](plugin-development.md)
 
 ## 命令列表
 

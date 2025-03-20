@@ -8,7 +8,7 @@ export default definePlugin({
     
     setup(ctx) {
       // 处理消息事件,e 会自动获得正确的类型
-      ctx.handleMessage(async e => {
+      ctx.handle('message.group', async e => {
         if (ctx.getText(e) === '角色列表') {
             const roles = await ctx.getAiRoleList(e.group_id);
 
@@ -16,7 +16,7 @@ export default definePlugin({
                 type: "node",
                 data: {
                     user_id: e.user_id,
-                    nickname: e.nickname,
+                    nickname: e.sender.nickname,
                     content: [
                         Structs.text(`〓 ${role.type} 〓\n`),
                         ...role.characters.map(character => (
@@ -35,7 +35,7 @@ export default definePlugin({
                             type: "node",
                             data: {
                                 user_id: e.user_id,
-                                nickname: e.nickname,
+                                nickname: e.sender.nickname,
                                 content: [Structs.text("〓 角色列表 〓")]
                             }
                         },
@@ -43,7 +43,7 @@ export default definePlugin({
                             type: "node",
                             data: {
                                 user_id: e.user_id,
-                                nickname: e.nickname,
+                                nickname: e.sender.nickname,
                                 content: messages
                             }
                         }
@@ -61,7 +61,7 @@ export default definePlugin({
             };
 
             // 发送合并转发消息
-            await ctx.eventBus.send(json.action, json.params);
+            await ctx.wsSend(json.action, json.params);
         }
 
         try {

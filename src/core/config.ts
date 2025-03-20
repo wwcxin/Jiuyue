@@ -1,17 +1,17 @@
 import fs from 'fs';
 import TOML from '@iarna/toml';
 import prompts from 'prompts';
-import { logger } from './';
-import type { Config } from './';
+import { logger } from './logger';
+import type { Config } from './index';
 import type { JsonMap } from '@iarna/toml';
 
-interface TomlConfig extends JsonMap {
-    host: string;
-    port: number; // 改为 number 类型
-    prefix: string;
-    root: string[];
-    admin: string[];
-    plugins: string[];
+interface TomlConfig {
+    host?: string;
+    port?: number;
+    prefix?: string;
+    root?: string[];
+    admin?: string[];
+    plugins?: string[];
 }
 
 export class ConfigManager {
@@ -30,101 +30,177 @@ export class ConfigManager {
 
     private loadConfig(): Config {
         try {
+            // 检查配置文件是否存在
+            if (!fs.existsSync(this.configPath)) {
+                // 创建默认配置
+                const defaultConfig: Config = {
+                    host: '',
+                    port: 0,
+                    prefix: '#',
+                    root: [],
+                    admin: [],
+                    plugins: ['cmd']
+                };
+                
+                // 保存默认配置
+                this.saveConfigToFile(defaultConfig);
+                return defaultConfig;
+            }
+
             const fileContent = fs.readFileSync(this.configPath, 'utf-8');
-            const data = TOML.parse(fileContent) as TomlConfig;
-            return {
-                host: data.host,
-                port: Number(data.port), // 确保转换为数字
-                prefix: data.prefix,
-                root: data.root,
-                admin: data.admin,
-                plugins: data.plugins
-            };
+            
+            // 处理空文件的情况
+            if (!fileContent.trim()) {
+                const defaultConfig: Config = {
+                    host: '',
+                    port: 0,
+                    prefix: '#',
+                    root: [],
+                    admin: [],
+                    plugins: ['cmd']
+                };
+                
+                this.saveConfigToFile(defaultConfig);
+                return defaultConfig;
+            }
+            
+            try {
+                const data = TOML.parse(fileContent) as any as TomlConfig;
+                
+                // 确保所有必要字段都存在，使用默认值填充缺失字段
+                return {
+                    host: data.host || '',
+                    port: typeof data.port === 'number' ? data.port : 0,
+                    prefix: data.prefix || '#',
+                    root: Array.isArray(data.root) ? data.root : [],
+                    admin: Array.isArray(data.admin) ? data.admin : [],
+                    plugins: Array.isArray(data.plugins) ? data.plugins : ['cmd']
+                };
+            } catch (parseError) {
+                logger.error(`Failed to parse config: ${parseError}`);
+                
+                // 如果解析失败，创建一个新的默认配置
+                const defaultConfig: Config = {
+                    host: '',
+                    port: 0,
+                    prefix: '#',
+                    root: [],
+                    admin: [],
+                    plugins: ['cmd']
+                };
+                
+                this.saveConfigToFile(defaultConfig);
+                return defaultConfig;
+            }
         } catch (error) {
             logger.error(`Failed to load config: ${error}`);
-            process.exit(1);
+            
+            // 如果加载失败，返回默认配置
+            return {
+                host: '',
+                port: 0,
+                prefix: '#',
+                root: [],
+                admin: [],
+                plugins: ['cmd']
+            };
         }
     }
 
     async validateAndPrompt(): Promise<void> {
+        let configChanged = false;
+        
+        // 检查并提示设置主机地址
         if (!this.config.host) {
             const response = await prompts({
                 type: 'text',
                 name: 'host',
-                message: 'Please enter the host address:'
+                message: '请输入主机地址 (例如: 127.0.0.1):',
+                initial: '127.0.0.1'
             });
+            
             if (!response.host) {
-                throw new Error('Host cannot be empty');
+                throw new Error('主机地址不能为空');
             }
+            
             this.config.host = response.host;
+            configChanged = true;
         }
 
+        // 检查并提示设置端口
         if (!this.config.port) {
             const response = await prompts({
-                type: 'text',
+                type: 'number',
                 name: 'port',
-                message: 'Please enter the port number:'
+                message: '请输入端口号 (例如: 4001):',
+                initial: 4001,
+                validate: value => value > 0 && value < 65536 ? true : '端口号必须在 1-65535 之间'
             });
+            
             if (!response.port) {
-                throw new Error('Port cannot be empty');
+                throw new Error('端口号不能为空');
             }
-            this.config.port = Number(response.port); // 转换为数字
+            
+            this.config.port = Number(response.port);
+            configChanged = true;
         }
 
+        // 检查前缀，如果为空则设置默认值
+        if (this.config.prefix === undefined || this.config.prefix === null) {
+            this.config.prefix = '/';
+            configChanged = true;
+        }
+
+        // 检查并提示设置主人QQ号
         if (!this.config.root || this.config.root.length === 0) {
             const response = await prompts({
                 type: 'text',
                 name: 'root',
-                message: 'Please enter the root user ID:'
+                message: '请输入主人QQ号:',
+                validate: value => value.trim() !== '' ? true : 'QQ号不能为空'
             });
+            
             if (!response.root) {
-                throw new Error('Root user ID cannot be empty');
+                throw new Error('主人QQ号不能为空');
             }
+            
             this.config.root = [response.root];
+            configChanged = true;
         }
 
-        this.saveConfig();
+        // 如果配置有变更，保存配置
+        if (configChanged) {
+            this.saveConfig();
+            logger.info('配置已更新');
+        }
+    }
+
+    private saveConfigToFile(config: Config): void {
+        try {
+            // 手动构建 TOML 字符串，确保格式正确
+            const tomlString = [
+                `host = "${config.host}"`,
+                `port = ${config.port}`,
+                `prefix = "${config.prefix}"`,
+                `root = ${JSON.stringify(config.root)}`,
+                `admin = ${JSON.stringify(config.admin)}`,
+                `plugins = ${JSON.stringify(config.plugins)}`
+            ].join('\n');
+            
+            fs.writeFileSync(this.configPath, tomlString, 'utf-8');
+        } catch (error) {
+            logger.error(`Failed to save config file: ${error}`);
+        }
     }
 
     public saveConfig(): void {
         try {
             this.validateConfig(this.config);
-            const tomlData: TomlConfig = {
-                host: this.config.host,
-                port: Number(this.config.port), // 确保是数字类型
-                prefix: this.config.prefix,
-                root: this.config.root,
-                admin: this.config.admin || [],
-                plugins: this.config.plugins || []
-            };
-            
-            // 手动构建 TOML 字符串，确保 port 被正确格式化
-            const tomlString = [
-                `host = "${tomlData.host}"`,
-                `port = ${tomlData.port}`, // 直接输出数字，不带引号
-                `prefix = "${tomlData.prefix}"`,
-                `root = ${JSON.stringify(tomlData.root)}`,
-                `admin = ${JSON.stringify(tomlData.admin)}`,
-                `plugins = ${JSON.stringify(tomlData.plugins)}`
-            ].join('\n');
-            
-            fs.writeFileSync(this.configPath, tomlString, 'utf-8');
-            logger.info('Config saved successfully');
+            this.saveConfigToFile(this.config);
+            logger.info('配置已保存');
         } catch (error) {
-            logger.error(`Failed to save config: ${error}`);
+            logger.error(`保存配置失败: ${error}`);
         }
-    }
-
-    private generateTomlString(): string {
-        const lines: string[] = [];
-        for (const [key, value] of Object.entries(this.config)) {
-            if (Array.isArray(value)) {
-                lines.push(`${key} = [${value.map(v => `"${v}"`).join(', ')}]`);
-            } else {
-                lines.push(`${key} = "${value}"`);
-            }
-        }
-        return lines.join('\n');
     }
 
     public getConfig(): Config {
@@ -132,16 +208,19 @@ export class ConfigManager {
     }
 
     validateConfig(config: Config): void {
-        if (!config.host) throw new Error('Missing host in config');
-        if (!config.port) throw new Error('Missing port in config');
-        if (!Array.isArray(config.root)) throw new Error('Root must be an array');
-        if (!Array.isArray(config.admin)) throw new Error('Admin must be an array');
-        if (!Array.isArray(config.plugins)) throw new Error('Plugins must be an array');
-        if (typeof config.port !== 'number' || isNaN(config.port)) {
-            throw new Error('Port must be a valid number');
+        // 检查必要字段
+        if (config.host === undefined) throw new Error('配置中缺少 host 字段');
+        if (config.port === undefined) throw new Error('配置中缺少 port 字段');
+        if (!Array.isArray(config.root)) throw new Error('root 必须是数组');
+        if (!Array.isArray(config.admin)) throw new Error('admin 必须是数组');
+        if (!Array.isArray(config.plugins)) throw new Error('plugins 必须是数组');
+        
+        // 验证端口号
+        if (config.port !== 0 && (typeof config.port !== 'number' || isNaN(config.port))) {
+            throw new Error('port 必须是有效的数字');
         }
-        if (config.port < 1 || config.port > 65535) {
-            throw new Error('Port must be between 1 and 65535');
+        if (config.port !== 0 && (config.port < 1 || config.port > 65535)) {
+            throw new Error('port 必须在 1-65535 之间');
         }
     }
 
@@ -160,9 +239,9 @@ export class ConfigManager {
                 this.config.plugins = this.config.plugins.filter(name => name !== pluginName);
             }
             this.saveConfig();
-            logger.info(`Plugin ${pluginName} ${action === 'add' ? 'added to' : 'removed from'} config`);
+            logger.info(`插件 ${pluginName} ${action === 'add' ? '已添加到' : '已从'}配置中移除`);
         } catch (error) {
-            logger.error(`Failed to update plugins in config: ${error}`);
+            logger.error(`更新插件配置失败: ${error}`);
         }
     }
 }

@@ -97,9 +97,6 @@ export interface XincPluginContext {
   /** 注册事件处理器,自动推导事件类型对应的处理器参数类型 */
   handle: <T extends EventKey>(event: T, handler: EventHandleMap[T]) => void;
   
-  /** 处理消息事件的快捷方法 */
-  handleMessage: (handler: (message: any) => void) => void;
-  
   /** 取消注册事件处理器 */
   off: <T extends EventKey>(event: T, handler: EventHandleMap[T]) => void;
   
@@ -362,18 +359,10 @@ export class PluginManager implements XincPluginManager {
           this.eventHandlers.set(plugin.name, new Set());
         }
         this.eventHandlers.get(plugin.name)!.add(handler);
-        this.eventBus.on(event, handler);
-      },
-      handleMessage: (handler) => {
-        // 记录消息处理器
-        if (!this.eventHandlers.has(plugin.name)) {
-          this.eventHandlers.set(plugin.name, new Set());
-        }
-        this.eventHandlers.get(plugin.name)!.add(handler);
-        this.eventBus.on('message', handler);
+        this.eventBus.on(event, handler as any);
       },
       off: <T extends EventKey>(event: T, handler: EventHandleMap[T]) => {
-        this.eventBus.off(event, handler);
+        this.eventBus.off(event, handler as any);
       },
       getDataPath: () => {
         const dir = path.join(this.dataDir, plugin.name);
@@ -817,7 +806,7 @@ export class PluginManager implements XincPluginManager {
           throw new Error(`Failed to send AI voice record: ${error instanceof Error ? error.message : String(error)}`);
         }
       },
-      wsSend: async (action: string, params: any) => {
+      wsSend: async (action: any, params: any) => {
         try {
           const json = {
             action: action,
